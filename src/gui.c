@@ -4107,6 +4107,8 @@ void HT_SetExtraHeaders(char **headers);
  ****************************************************************************/
 void mo_do_gui (int argc, char **argv)
 {
+	XtSetLanguageProc(NULL, NULL, NULL);  // 日本語入力に必要
+
 #ifdef MONO_DEFAULT
     int use_color = 0;
 #else
