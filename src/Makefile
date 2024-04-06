@@ -38,7 +38,7 @@ globalhist.o: globalhist.c ../libhtmlw/HTML.h
 	$(CC) -c $(CFLAGS) $(AUX_CFLAGS) globalhist.c
 
 $(MOSAIC): $(OBJS) $(AUXOBJS) $(HDFOBJS) $(PROGRAM_LIBS) $(DTM_LIBS)
-	$(PURIFY) $(CC) $(LDFLAGS) -o $(MOSAIC) $(OBJS) $(AUXOBJS) $(HDFOBJS) $(LIBS)
+	$(PURIFY) $(CC) $(LDFLAGS) -o $(MOSAIC) $(OBJS) $(AUXOBJS) $(HDFOBJS) $(LIBS) -lcurl -lfreeimage
 
 #HFILES = mosaic.h prefs.h prefs_defs.h xresources.h
 #$(OBJS): $(HFILES)

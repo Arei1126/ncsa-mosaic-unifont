@@ -51,6 +51,7 @@
  * Comments and questions are welcome and can be sent to                    *
  * mosaic-x@ncsa.uiuc.edu.                                                  *
  ****************************************************************************/
+#include <curl/curl.h>
 
 #include "mosaic.h"
 #include "gui.h"
@@ -4108,6 +4109,8 @@ void HT_SetExtraHeaders(char **headers);
 void mo_do_gui (int argc, char **argv)
 {
 	XtSetLanguageProc(NULL, NULL, NULL);  // 日本語入力に必要
+	curl_global_init(CURL_GLOBAL_ALL);
+	
 
 #ifdef MONO_DEFAULT
     int use_color = 0;

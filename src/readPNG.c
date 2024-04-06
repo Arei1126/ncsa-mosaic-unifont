@@ -74,6 +74,7 @@
 
 #include "mosaic.h"
 #include "readPNG.h"
+#include <png.h>
 
 #include <setjmp.h>
 
@@ -87,6 +88,13 @@ extern int srcTrace;
 unsigned char *
 ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
 {
+	int referred_height = 0;
+	int referred_width = 0;
+#ifndef DISABLE_TRACE
+        if (srcTrace) {
+            fprintf(stderr, "[ReadPNG] Entering ReadPNG\n");
+        }
+#endif
 
     unsigned char *pixmap;
     unsigned char *p;
@@ -106,27 +114,47 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
 
     /* first check to see if its a valid PNG file. If not, return. */
     /* we assume that infile is a valid filepointer */
-    {
         png_byte buf[PNG_BYTES_TO_CHECK];
 
-        if (fread(buf, 1, PNG_BYTES_TO_CHECK, infile) != PNG_BYTES_TO_CHECK)
-            return 0;
+        if (!(fread(buf, 1, PNG_BYTES_TO_CHECK, infile) == PNG_BYTES_TO_CHECK)){
+#ifndef DISABLE_TRACE
+		fprintf(stderr,"[ReadPNG] fread err\n");
+#endif
+            return NULL;
+	}
 
-        return(!png_sig_cmp(buf, 0, PNG_BYTES_TO_CHECK));
-    }
+        
+	//return(!png_sig_cmp(buf, 0, PNG_BYTES_TO_CHECK));  // Hmmmmmm, that's strange.
+	
+	//if(!(png_sig_cmp(buf, 0, PNG_BYTES_TO_CHECK) == 0))
+	if(!(png_sig_cmp(buf, 0, PNG_BYTES_TO_CHECK) == 0)){
+#ifndef DISABLE_TRACE
+		fprintf(stderr,"[ReadPNG] png_sig_cmp err.\n");
+#endif
+		return NULL;
+	
+	}
 
     /* allocate the structures */
     png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    if(!png_ptr)
+    if(!png_ptr){
+#ifndef DISABLE_TRACE
+		fprintf(stderr,"[ReadPNG] png_create_read_strict is err.\n");
+#endif
 		fclose(infile);
-        return 0;
+        return NULL;
+    }
 
     /* initialize the structures */
     info_ptr = png_create_info_struct(png_ptr);
     if(!info_ptr) {
         fclose(infile);
         png_destroy_read_struct(png_ptr, NULL, NULL);
-        return 0;
+#ifndef DISABLE_TRACE
+		fprintf(stderr,"[ReadPNG] png_destoroy_read err.\n");
+#endif
+
+        return NULL;
     }
 
     /* Establish the setjmp return context for png_error to use. */
@@ -147,7 +175,10 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
         if(row_pointers != NULL)
             free((png_byte **)row_pointers);
         
-        return 0;
+	#ifndef DISABLE_TRACE
+	fprintf(stderr,"[ReadPNG] setjmp(png_jmpbuf(png_ptr)\n");
+	#endif
+        return NULL;
     }
 
 #ifdef SAM_NO
@@ -160,17 +191,26 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
         /* set up the input control */
     png_init_io(png_ptr, infile);
 
+    // tell png bytes aleady read
+    png_set_sig_bytes(png_ptr,PNG_BYTES_TO_CHECK);
+
         /* read the file information */
     png_read_info(png_ptr, info_ptr);
 
         /* setup other stuff using the fields of png_info. */
 
     png_get_IHDR(png_ptr, info_ptr, width, height, &bit_depth, &color_type, &interlace_type, NULL, NULL);
-
+    
+    referred_height = *height;
+    referred_width = *width;
 #ifndef DISABLE_TRACE
     if (srcTrace) {
-        fprintf(stderr,"\n\nBEFORE\nwidth = %ls\n", width);
-        fprintf(stderr,"height = %ls\n", height);
+        //fprintf(stderr,"\n\nBEFORE\nwidth = %ls\n", width);
+        //fprintf(stderr,"height = %ls\n", height); 
+
+	fprintf(stderr,"\n\nBEFORE\nwidth = %d\n", referred_width);
+        fprintf(stderr,"height = %d\n", referred_height);
+ 
         fprintf(stderr,"bit depth = %d\n", bit_depth);
         fprintf(stderr,"color type = %d\n", color_type);
         fprintf(stderr,"interlace type = %d\n", interlace_type);
@@ -243,10 +283,7 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
 
             png_uint_16p histogram = NULL;
             png_get_hIST(png_ptr, info_ptr, &histogram);
-            png_set_quantize(png_ptr, palette,
-                           num_palette,
-                           get_pref_int(eCOLORS_PER_INLINED_IMAGE),
-                           histogram, 1);
+            //png_set_quantize(png_ptr, palette,num_palette,get_pref_int(eCOLORS_PER_INLINED_IMAGE),histogram, 1);
 
         }
     }
@@ -295,10 +332,13 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
 
     png_read_update_info(png_ptr, info_ptr);
 
+    referred_height = *height;
+    referred_width = *width;
+
 #ifndef DISABLE_TRACE
     if (srcTrace) {
-        fprintf(stderr,"\n\nAFTER\nwidth = %ls\n", width);
-        fprintf(stderr,"height = %ls\n", height);
+        fprintf(stderr,"\n\nAFTER\nwidth = %d\n", referred_width);
+        fprintf(stderr,"height = %d\n", referred_height);
         fprintf(stderr,"bit depth = %d\n", bit_depth);
         fprintf(stderr,"color type = %d\n", color_type);
         fprintf(stderr,"interlace type = %d\n", interlace_type);
@@ -314,12 +354,12 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
         /* allocate the pixel grid which we will need to send to
            png_read_image(). */
     int rowbytes = png_get_rowbytes(png_ptr, info_ptr);
-    png_pixels = (png_byte *)malloc(rowbytes *
-                                    (*height) * sizeof(png_byte));
+    png_pixels = (png_byte *)malloc(rowbytes *(referred_height) * sizeof(png_byte));
 
 
-    for (i=0; i < *height; i++)
+    for (i=0; i < referred_height; i++){
         row_pointers[i]=png_malloc(png_ptr, rowbytes);
+    }
 
 
         /* FINALLY - read the darn thing. */
@@ -376,9 +416,9 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
             fprintf(stderr,"Getting rid of alpha channel\n");
         }
 #endif
-        for(i=0; i<*height; i++) {
+        for(i=0; i<referred_height; i++) {
             q = row_pointers[i];
-            for(j=0; j<*width; j++) {
+            for(j=0; j<referred_width; j++) {
                 *p++ = *q++; /*palette index*/
                 q++; /* skip the alpha pixel */
             }
@@ -392,20 +432,25 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
         }
 #endif
 
-        for(i=0; i<*height; i++) {
+        for(i=0; i<referred_height; i++) {
             q = row_pointers[i];
-            for(j=0; j<*width; j++) {
+            for(j=0; j<referred_width; j++) {
                 *p++ = *q++; /*palette index*/
             }
         }
     }
 
     free((char *)png_pixels);
-    free((png_byte **)row_pointers);
+    //free((png_byte **)row_pointers);
 
     /* clean up after the read, and free any memory allocated */
-	png_destroy_read_struct(png_ptr, info_ptr, NULL);
+	//png_destroy_read_struct(png_ptr, info_ptr, (png_infopp)NULL);
 
+#ifndef DISABLE_TRACE
+        if (srcTrace) {
+            fprintf(stderr,"[ReadPNG] success\n");
+        }
+#endif
     return pixmap;
 }
 

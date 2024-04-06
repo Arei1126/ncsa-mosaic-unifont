@@ -20,6 +20,7 @@ RANLIB = ranlib
 CC = gcc
 
 #### Linker Flags
+#### modified to build curl mod
 ldflags =
 
 #### For a few files in the source, some compilers may need to be kicked

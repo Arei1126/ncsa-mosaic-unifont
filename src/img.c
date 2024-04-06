@@ -51,6 +51,9 @@
  * Comments and questions are welcome and can be sent to                    *
  * mosaic-x@ncsa.uiuc.edu.                                                  *
  ****************************************************************************/
+#include <curl/curl.h>
+#include <X11/Xlib.h>
+
 #include "../config.h"
 #include "../libhtmlw/HTML.h"
 #include "mosaic.h"
@@ -65,6 +68,7 @@ extern int cci_event;
 #ifndef DISABLE_TRACE
 extern int srcTrace;
 #endif
+
 
 #include "bitmaps/gopher_image.xbm"
 #include "bitmaps/gopher_movie.xbm"
@@ -179,7 +183,9 @@ extern Colormap installed_cmap;
   return x; \
 }
 
+
 /* ------------------------------------------------------------------------ */
+
 
 
 ImageInfo *scaleImage(ImageInfo *img_data,char *width,char *height) {
@@ -251,6 +257,11 @@ unsigned char nums[]={
 /*static*/
 ImageInfo *ImageResolve (Widget w, char *src, int noload, char *wid, char *hei)
 {
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+	fprintf(stderr,"[ImageResolve] Entering src:%s\n",src);
+	}
+#endif
     extern Widget view; /*hw->html.view*/
     Widget swin = current_win->scrolled_win;
     int i, cnt;
@@ -424,6 +435,14 @@ stuffcache:
 
   /* Go see if we already have the image info hanging around. */
   img_data = mo_fetch_cached_image_data (src);
+#ifndef DISABLE_TRACE
+  if (srcTrace){
+	  if(img_data){
+		  fprintf(stderr,"img data is mo_fetch_cashed\n");
+	  }
+  }
+#endif
+
   if (img_data && img_data->image_data)
   {
 	unsigned long bg_pixel;
@@ -539,8 +558,11 @@ stuffcache:
 
 		interrupted = 0;
 		rc = mo_pull_er_over_virgin (src, fnam);
+
+		
 		if (!rc)
 		{
+
 #ifndef DISABLE_TRACE
 			if (srcTrace)
 			fprintf (stderr, "mo_pull_er_over_virgin returned %d; bonging\n",
@@ -577,6 +599,33 @@ stuffcache:
 	}
 
 	data = ReadBitmap(fnam, &width, &height, colrs, &bg);
+#ifndef DISABLE_TRACE	
+	/*
+	if(srcTrace){
+		for(int i = 0; i < 256; i++){
+			XColor c = colrs[i];
+			fprintf(stderr,"colrs[%d]\npixel: %lu\nred: %hu, green: %hu, blue: %hu\nflags: %d, pad: %d\n\n",i,c.pixel,c.red,c.green,c.blue,c.flags,c.pad);
+		}
+
+		if (srcTrace) {
+			fprintf(stderr,"\n\nAFTER\nwidth = %d\n", width);
+			fprintf(stderr,"height = %d\n", height);	
+			fprintf(stderr,"filename = %s\n", fnam);	
+
+			FILE *my_fp = fopen("test.raw","w+");
+			//fputs(data,my_fp);
+			fwrite(data,1,width*height,my_fp);
+
+			fclose(my_fp);
+
+
+		}
+	}
+	*/
+#endif
+
+	
+	
 
 #ifndef DISABLE_TRACE
 	if (srcTrace)
@@ -634,27 +683,27 @@ stuffcache:
 		return NULL;
 	}
 
-{
-int found_bg=0;
+	{
+		int found_bg=0;
 
-	if (data!=NULL) {
-		for (i=0; i<width*height; i++) {
-			if ((int)(data[i])==bg) {
-				found_bg=1;
-				break;
+		if (data!=NULL) {
+			for (i=0; i<width*height; i++) {
+				if ((int)(data[i])==bg) {
+					found_bg=1;
+					break;
+				}
+			}
+			if (!found_bg) {
+				bg=(-1);
 			}
 		}
-		if (!found_bg) {
-			bg=(-1);
-		}
 	}
-}
 
-      img_data = (ImageInfo *)malloc(sizeof(ImageInfo));
-      if ((bg >= 0)&&(data != NULL) &&
-	  get_pref_boolean(eCLIPPING) &&
-	  (get_pref_int(eMAX_CLIPPING_SIZE_X)==(-1) ||
-	   get_pref_int(eMAX_CLIPPING_SIZE_X)>=width) &&
+	img_data = (ImageInfo *)malloc(sizeof(ImageInfo));
+	if ((bg >= 0)&&(data != NULL) &&
+			get_pref_boolean(eCLIPPING) &&
+			(get_pref_int(eMAX_CLIPPING_SIZE_X)==(-1) ||
+			 get_pref_int(eMAX_CLIPPING_SIZE_X)>=width) &&
 	  (get_pref_int(eMAX_CLIPPING_SIZE_Y)==(-1) ||
 	   get_pref_int(eMAX_CLIPPING_SIZE_Y)>=height)) {
 	img_data->transparent=1;
@@ -674,6 +723,13 @@ int found_bg=0;
       img_data->image = 0;
       img_data->clip = 0;
       img_data->src = strdup(src);
+#ifndef DISABLE_TRACE
+      if(srcTrace){
+	      //fprintf(stderr,"img_data, >image_data,>src: %d, %d,%s\n",img_data,img_data->image_data,img_data->src);
+	      //fprintf(stderr,"widht,height%d,%d\n",img_data->width,img_data->height);
+      }
+#endif
+
       /* Bandaid for bug afflicting Eric's code, apparently. */
       img_data->internal = 0;
     }

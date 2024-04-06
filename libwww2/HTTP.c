@@ -36,8 +36,9 @@ extern char **agent;
 
 #ifndef DISABLE_TRACE
 /* new logging stuff */
-int httpTrace=0;
-int www2Trace=0;
+//ここを1にすれば万事ろぐされる
+int httpTrace=1;
+int www2Trace=1;
 #endif
 
 char **extra_headers=NULL;
@@ -77,6 +78,13 @@ extern BOOL using_gateway;    /* are we using an HTTP gateway? */
 extern char *proxy_host_fix;  /* for the Host: header */
 extern BOOL using_proxy;      /* are we using an HTTP proxy gateway? */
 PUBLIC BOOL reloading = NO;   /* did someone say, "RELOAD!?!?!" swp */
+
+PUBLIC int HTLoadHTTPS ARGS4 (
+	char *, 		arg,
+	HTParentAnchor *,	anAnchor,
+	HTFormat,		format_out,
+	HTStream*,		sink);
+
 
 /*		Load Document from HTTP Server			HTLoadHTTP()
 **		==============================
@@ -797,7 +805,10 @@ PUBLIC int HTLoadHTTP ARGS4 (
 #ifndef DISABLE_TRACE
         if (www2Trace)
           fprintf (stderr, "--- Talking HTTP1.\n");
+	
+	fprintf(stderr,"server_status:%d\n",server_status);
 #endif
+
 
         switch (server_status / 100)
           {
@@ -868,6 +879,7 @@ PUBLIC int HTLoadHTTP ARGS4 (
 				char *ptr;
 
 				headData=strdup(start_of_data);
+				fprintf(stderr,"headData(in HTTP.c 878):%s\n",headData);
 				ptr=strchr(headData,'\n');
 				*ptr='\0';
 			}
@@ -1055,7 +1067,42 @@ PUBLIC int HTLoadHTTP ARGS4 (
 
 PUBLIC HTProtocol HTTP = { "http", HTLoadHTTP, 0 };
 
+PUBLIC HTProtocol HTTPS = {"https",HTLoadHTTPS,0};
 
+
+/*		Load Document from HTTPS Server			HTLoadHTTPS()
+**		==============================
+**
+**	Given a hypertext address, this routine loads a document.
+**
+**
+** On entry,
+**	arg	is the hypertext reference of the article to be loaded.
+**
+** On exit,
+**	returns	>=0	If no error, a good socket number
+**		<0	Error.
+**
+**	The socket must be closed by the caller after the document has been
+**	read.
+**
+*/
+
+PUBLIC int HTLoadHTTPS ARGS4 (
+	char *, 		arg,
+	HTParentAnchor *,	anAnchor,
+	HTFormat,		format_out,
+	HTStream*,		sink)
+{
+#ifndef DISABLE_TRACE
+	if (www2Trace){
+
+		fprintf(stderr,"I am HTLoadHTTPS(in libww2/HTTP.c)!! The dead end of https request!\n");
+		fprintf(stderr,"arg:%s, anAnchor:%s, format_out:%d\n",arg,anAnchor,format_out);
+	}
+#endif
+	return -1;
+}
 
 
 

@@ -100,6 +100,7 @@ PRIVATE void HTAccessInit NOARGS			/* Call me once */
 {
 extern HTProtocol HTTP, HTFile, HTTelnet, HTTn3270, HTRlogin;
 extern HTProtocol HTFTP, HTNews, HTGopher, HTMailto, HTNNTP;
+extern HTProtocol HTTPS; //from HTTP.c
 #ifdef DIRECT_WAIS
 extern HTProtocol HTWAIS;
 #endif
@@ -117,6 +118,8 @@ extern HTProtocol HTWAIS;
     HTRegisterProtocol(&HTRlogin);
     HTRegisterProtocol(&HTMailto);
     HTRegisterProtocol(&HTNNTP);
+
+    HTRegisterProtocol(&HTTPS);
 }
 
 
@@ -138,6 +141,11 @@ PRIVATE int get_physical ARGS3(
 	HTParentAnchor *,	anchor,
 	int,		bong)
 {
+#ifndef DISABLE_TRACE
+	if(www2Trace){
+	fprintf(stderr,"addr(in get_physical):%s\n",addr);
+	}
+#endif
     char * access=NULL;	/* Name of access method */
     char * host = NULL;
     struct Proxy *GetNoProxy();
@@ -145,8 +153,19 @@ PRIVATE int get_physical ARGS3(
 
     HTAnchor_setPhysical(anchor, addr);
 
+
     access =  HTParse(HTAnchor_physical(anchor),
     		"file:", PARSE_ACCESS);
+
+#ifndef DISABLE_TRACE
+    if(www2Trace){
+
+	    fprintf(stderr,"[get_physical]access:%s\n",access);
+	    fprintf(stderr,"[get_physical]host:%s\n",host);
+
+    }
+#endif    
+
 
     host = HTParse(HTAnchor_physical(anchor), "", PARSE_HOST);
 
@@ -327,8 +346,18 @@ PRIVATE int HTLoad ARGS4(
 	HTFormat,		format_out,
 	HTStream *,		sink)
 {
+#ifndef DISABLE_TRACE
+    if(www2Trace){
+	fprintf(stderr,"addr(in HTLoad):%s\n",addr);
+    }
+#endif    
     HTProtocol* p;
     int ret, status = get_physical(addr, anchor, 0);
+#ifndef DISABLE_TRACE
+    if(www2Trace){
+	    fprintf(stderr,"status(in HTLoad):%d\n",status);
+    }
+#endif 
     int retry=5;
     static char *buf1="Do you want to disable the proxy server:\n\n";
     static char *buf2="\n\nAlready attempted 5 contacts.";
@@ -464,7 +493,13 @@ PRIVATE int HTLoadDocument ARGS4(
 	HTFormat,		format_out,
 	HTStream*,		sink)
 {
-    int	        status;
+
+#ifndef DISABLE_TRACE
+	if(www2Trace){
+		fprintf(stderr,"[HTLoadDocument] full_address:%s\n",full_address);
+	}
+#endif
+    	int	        status;
 
     use_this_url_instead = NULL;
 

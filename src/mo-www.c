@@ -51,6 +51,8 @@
  * Comments and questions are welcome and can be sent to                    *
  * mosaic-x@ncsa.uiuc.edu.                                                  *
  ****************************************************************************/
+#include <curl/curl.h>
+
 #include "../config.h"
 #include "mosaic.h"
 #include "comment.h"
@@ -58,6 +60,7 @@
 #include "gui-dialogs.h"
 #include "gui.h"
 #include <ctype.h>
+#include <curl/easy.h>
 #include <stdio.h>
 
 /*for memcpy*/
@@ -168,6 +171,218 @@ int selectedAgent=0;
 
 #define FRAME_CHECK_SIZE 2048
 
+
+
+// ここからcurlmodをしていく
+// curl mod start here
+
+/****************************************************************************
+ * name:    hack_download_from_curl (PRIVATE)
+ * purpose: Get contents by curl. 
+ * inputs:
+ *   - url 
+ *   none (global HTMainText is assumed to contain current
+ *           HText object)
+ * returns:
+ * 	- 1 donwload sucessfully finished
+ * 	- -1 download failed 
+ * remarks:
+ *   It is really quick and dirty, but this makes Mosaic browser works in 2024.
+ ****************************************************************************/
+static char *hack_download_from_curl(char *url){
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+	//fprintf(stderr,"\n%s\n\n",MAGICAL);
+	}
+#endif
+
+	struct Buffer {
+		char *data;
+		int data_size;
+	};
+
+	size_t my_write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {  // ptrが新しく入ってくるやつ、userdataが最終的に渡したいやつ（それはCURLOPT_WRITEDATAで指定するもの
+		size_t block = size * nmemb;
+
+		struct Buffer *buf = (struct Buffer *)userdata;
+
+		if (!buf) {
+			return block;
+		}
+
+		if (!buf->data) {
+			buf->data = (char *)malloc(block);
+		}
+		else {
+			buf->data = (char *)realloc(buf->data, buf->data_size + block);
+		}
+
+		if (buf->data) {
+			memcpy(buf->data + buf->data_size, ptr, block);
+			buf->data_size += block;
+		}
+
+		return block;
+	}
+
+    	CURL *curl;
+    	CURLcode res;
+
+	char *URL = url;
+
+	struct Buffer *buffer;
+	buffer = (struct Buffer *)malloc(sizeof(struct Buffer));
+	buffer->data = NULL;
+	buffer->data_size = 0;
+
+	// libcurlの初期化
+	//curl_global_init(CURL_GLOBAL_ALL);
+
+	// イージーハンドルの作成
+	curl = curl_easy_init();
+	if (curl) {
+		// URLの設定
+		curl_easy_setopt(curl, CURLOPT_URL, URL);
+		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);  // ちゃんと証明を確認する
+
+		//curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_NONE);
+
+		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_write_callback);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, buffer);
+		//curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) NCSA=Mosaic/2.7b6 (X11;Linux 5.10.0-28-amd64 x86_64) libwww/2.12 modified curl version");
+		//curl_easy_setopt(curl, CURLOPT_USERAGENT, "NCSA_Mosaic/2.7b4 (X11;AIX 1 000180663000)");
+
+	//curl_easy_setopt(curl, CURLOPT_USERAGENT, "NetSurf/3.10 (Linux)");
+
+
+		// HTTPリクエストの実行
+		res = curl_easy_perform(curl);
+
+		if(!(res == CURLE_OK)){
+
+			curl_easy_cleanup(curl);
+			return -1;
+		}
+
+
+
+
+
+
+		if(!HTMainText){
+			HTMainText = HText_new();
+			
+		}
+
+		HTMainText->expandedAddress = NULL;
+		HTMainText->simpleAddress = NULL;
+		free(HTMainText->htmlSrc);
+		HTMainText->htmlSrc;
+		//HTMainText->htmlSrc = strdup(buffer->data);
+		HTMainText->htmlSrc = buffer->data;
+		
+		HTMainText->srcalloc = (int)res;
+		HTMainText->srclen = (int)res;
+
+
+		//HTMainText->srcalloc = (int)res;
+		//HTMainText->srclen = (int)res;
+		// イージーハンドルのクリーンアップ
+		curl_easy_cleanup(curl);
+		return 1;
+	}
+
+	// libcurlのクリーンアップ
+	//curl_global_cleanup();
+
+	return -1;
+}
+
+/****************************************************************************
+ * name:    download_file_curl
+ * purpose: Diven URL and name, create dump file.
+ * inputs:
+ *   - char  *url: The URL to pull over.
+ *   - char *fnam: Filename in which to dump the received data.
+ * returns:
+ *   mo_succeed on success; mo_fail otherwise.
+ * remarks:
+ *   This routine is called when we know there's data out there we
+ *   want to get and we know we just want it dumped in a file, no
+ *   questions asked, by the WWW library.  Appropriate global flags
+ *   are set to make this happen.
+ *   This must be made cleaner.
+ ****************************************************************************/
+int download_file_curl(char *url, char *fnam){
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+	//fprintf(stderr,"\n%s\n\n",MAGICAL);
+	}
+#endif
+
+
+	CURL *curl;
+	CURLcode res;
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+	fprintf(stderr,"[download_file_curl,src,fnam]:%s,%s\n",url,fnam);
+	}
+#endif
+
+	// libcurlの初期化
+	//curl_global_init(CURL_GLOBAL_ALL);
+
+	// イージーハンドルの作成
+	curl = curl_easy_init();
+	if (curl) {
+		// URLの設定
+		curl_easy_setopt(curl, CURLOPT_URL, url);
+		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);  // ちゃんと証明を確認する
+		
+		//curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_NONE);
+		
+		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) NCSA=Mosaic/2.7b6 (X11;Linux 5.10.0-28-amd64 x86_64) libwww/2.12 modified curl version");
+
+		FILE *fp = fopen(fnam,"w+");
+		if(!fp){
+			curl_easy_cleanup(curl);
+			return -1;
+		}
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+
+		// HTTPリクエストの実行
+		res = curl_easy_perform(curl);
+
+
+		//curl_global_cleanup();
+		fclose(fp);
+
+		if(res == CURLE_OK){	
+			// イージーハンドルのクリーンアップ
+			curl_easy_cleanup(curl);
+			return 1;
+		}
+		else{
+			// イージーハンドルのクリーンアップ
+			curl_easy_cleanup(curl);
+			return -1;
+		}
+	}
+
+	// libcurlのクリーンアップ
+	//curl_global_cleanup();
+
+	return mo_fail;
+}
+
+
+
+
+
 /* Basically we show the urls that appear within the frameset tag
    as urls and add some text explaining that these are the urls they
    were supposed to see as frames. We also show the NOFRAMES stuff. */
@@ -262,6 +477,25 @@ static void frame_hack()
  ****************************************************************************/
 static char *hack_htmlsrc (void)
 {
+	/*
+	// 私がいじる
+	if(HTMainText){
+		if(HTMainText->htmlSrc){
+			// Keep pointer to real head of htmlSrc memory block. 1
+			HTMainText->htmlSrcHead = HTMainText->htmlSrc;
+
+			fprintf("stderr","Before hack:\n%s\n",HTMainText->htmlSrc);
+			
+			char *mes = "<!DOCTYPE html><html><head><title>Hacked</title></head><body><p>You are hacked!!!!</p></body></html>";
+			free(HTMainText->htmlSrc);
+			HTMainText->htmlSrc = strdup(mes);
+
+			return HTMainText->htmlSrc;
+		}
+	}
+
+	*/
+
   if (!HTMainText)
     return NULL;
 
@@ -365,13 +599,22 @@ static char *doit (char *url, char **texthead)
 
   is_uncompressed=0;
 
-  rv = HTLoadAbsolute (url);
+  //rv = HTLoadAbsolute (url);
+
+  rv = hack_download_from_curl(url);
+
+  if(HTMainText){
+	if(HTMainText->htmlSrc){
+	}
+  }
 
   if (rv == 1)
     {
       char *txt = hack_htmlsrc ();
-      if (HTMainText)
-        *texthead = HTMainText->htmlSrcHead;
+
+      if (HTMainText){
+	      *texthead = HTMainText->htmlSrcHead;
+      }
       else
         *texthead = NULL;
       return txt;
@@ -421,7 +664,6 @@ static char *doit (char *url, char **texthead)
  * purpose: Given a URL, pull 'er over.
  * inputs:
  *   - char       *url: The URL to pull over.
- *   - char **texthead: Return pointer to head of allocated block.
  * returns:
  *   Text to display (char *).
  * remarks:
@@ -429,6 +671,11 @@ static char *doit (char *url, char **texthead)
  ****************************************************************************/
 char *mo_pull_er_over (char *url, char **texthead)
 {
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+	fprintf(stderr,"[mo_pull_er_over],url: %s\n",url);
+	}
+#endif
   char *rv;
   extern int binary_transfer;
 
@@ -512,6 +759,12 @@ char *mo_post_pull_er_over (char *url, char *content_type, char *data,
  ****************************************************************************/
 mo_status mo_pull_er_over_virgin (char *url, char *fnam)
 {
+
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+	fprintf(stderr,"[mo_pull_er_over_virgin],url: %s\n",url);
+	}
+#endif
   int rv;
 
   /* Force dump to file. */
@@ -524,7 +777,10 @@ mo_status mo_pull_er_over_virgin (char *url, char *fnam)
 
   is_uncompressed=0;
 
-  rv = HTLoadAbsolute (url);
+  rv = HTLoadAbsolute (url);  // 実際にはここでHTTPSレスポンスは死にます。 this dose not support HTTPS
+  if(!(rv == 1)){
+	rv = download_file_curl(url,fnam);
+  }
 
   if (rv == 1)
     {
