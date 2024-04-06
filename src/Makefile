@@ -13,7 +13,7 @@ CFILES = main.c gui.c  gui-dialogs.c gui-menubar.c gui-documents.c gui-news.c\
   gui-extras.c mo-www.c mo-dtm.c hotlist.c history.c\
   annotate.c pan.c grpan.c grpan-www.c audan.c globalhist.c img.c\
   picread.c xpmhash.c xpmread.c gifread.c pixmaps.c\
-  medcut.c mo-hdf.c hotfile.c child.c mailto.c readJPEG.c readPNG.c\
+  medcut.c mo-hdf.c hotfile.c child.c mailto.c readJPEG.c readPNG.c readIMG.c\
   accept.c cciServer.c cciBindings.c cciBindings2.c support.c bla.c\
   kcms.c md5.c proxy-dialogs.c proxy-misc.c gui-popup.c gui-ftp.c\
   prefs.c
@@ -23,7 +23,7 @@ OBJS = main.o gui.o gui-dialogs.o gui-menubar.o gui-documents.o gui-news.o\
   gui-extras.o mo-www.o mo-dtm.o hotlist.o history.o\
   annotate.o pan.o grpan.o grpan-www.o audan.o globalhist.o img.o\
   picread.o xpmhash.o xpmread.o gifread.o pixmaps.o\
-  medcut.o mo-hdf.o hotfile.o child.o mailto.o readJPEG.o readPNG.o\
+  medcut.o mo-hdf.o hotfile.o child.o mailto.o readJPEG.o readPNG.o readIMG.o\
   accept.o cciServer.o cciBindings.o cciBindings2.o support.o bla.o\
   kcms.o md5.o proxy-dialogs.o proxy-misc.o gui-popup.o gui-ftp.o\
   prefs.o
@@ -150,7 +150,7 @@ img.o: bitmaps/gopher_telnet.xbm bitmaps/gopher_binary.xbm
 img.o: bitmaps/gopher_unknown.xbm
 
 picread.o: mosaic.h ../libXmx/Xmx.h toolbar.h prefs.h prefs_defs.h
-picread.o: picread.h gifread.h xpmread.h readJPEG.h readPNG.h
+picread.o: picread.h gifread.h xpmread.h readJPEG.h readPNG.h readIMG.h
 
 xpmhash.o: xpm.h
 
@@ -176,6 +176,9 @@ mailto.o: ../libnut/url-utils.h ../libnut/system.h
 readJPEG.o: mosaic.h ../libXmx/Xmx.h toolbar.h prefs.h prefs_defs.h readJPEG.h
 
 readPNG.o: mosaic.h ../libXmx/Xmx.h toolbar.h prefs.h prefs_defs.h readPNG.h
+
+readIMG.o: mosaic.h ../libXmx/Xmx.h toolbar.h prefs.h prefs_defs.h readIMG.h
+
 
 accept.o: port.h accept.h memStuffForPipSqueeks.h
 
