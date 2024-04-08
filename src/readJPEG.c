@@ -59,6 +59,7 @@ int i;
 
 	/* Establish the setjmp return context for my_error_exit to use. */
 
+
 	if (setjmp(jerr.setjmp_buffer)) {
 		/* If we get here, the JPEG code has signaled an error. */
     		jpeg_destroy_decompress(&cinfo);
@@ -67,14 +68,23 @@ int i;
 		if (retBuffer) {
 			free(retBuffer);
 			}
-		return 0;
+		return((unsigned char *)NULL);
 		}
 
 	jpeg_create_decompress(&cinfo);
 
 	jpeg_stdio_src(&cinfo, infile);
 
-	(void) jpeg_read_header(&cinfo, TRUE);
+	//(void) jpeg_read_header(&cinfo, TRUE);
+	if(!(jpeg_read_header(&cinfo, TRUE) == JPEG_HEADER_OK)){
+#ifndef DISABLE_TRACE
+	if (srcTrace) {
+		fprintf(stderr,"ReadJPEG(): It's not JPEG file\n");
+	}
+#endif
+		return((unsigned char *)NULL);
+	}
+
 
 	/* We can ignore the return value from jpeg_read_header since
 	*   (a) suspension is not possible with the stdio data source, and
@@ -98,7 +108,8 @@ int i;
 		}
 #endif
 
-		return(0);
+		//return(0);
+		return((unsigned char *)NULL);
 		}
 #ifndef DISABLE_TRACE
 	if (srcTrace) {

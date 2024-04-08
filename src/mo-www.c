@@ -196,9 +196,31 @@ static char *hack_download_from_curl(char *url){
 	}
 #endif
 
+	struct memory {
+		char *response;
+		size_t size;
+	};
+
+	size_t cb(void *data, size_t size, size_t nmemb, void *clientp)
+	{
+		size_t realsize = size * nmemb;
+		struct memory *mem = (struct memory *)clientp;
+
+		char *ptr = realloc(mem->response, mem->size + realsize + 1);
+		if(!ptr)
+			return 0;  /* out of memory! */
+
+		mem->response = ptr;
+		memcpy(&(mem->response[mem->size]), data, realsize);
+		mem->size += realsize;
+		mem->response[mem->size] = 0;
+
+		return realsize;
+	}
+
 	struct Buffer {
 		char *data;
-		int data_size;
+		size_t data_size;
 	};
 
 	size_t my_write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {  // ptrが新しく入ってくるやつ、userdataが最終的に渡したいやつ（それはCURLOPT_WRITEDATAで指定するもの
@@ -229,11 +251,14 @@ static char *hack_download_from_curl(char *url){
     	CURLcode res;
 
 	char *URL = url;
-
+/*
 	struct Buffer *buffer;
 	buffer = (struct Buffer *)malloc(sizeof(struct Buffer));
 	buffer->data = NULL;
 	buffer->data_size = 0;
+	*/
+
+	struct memory chunk = {0};
 
 	// libcurlの初期化
 	//curl_global_init(CURL_GLOBAL_ALL);
@@ -246,10 +271,19 @@ static char *hack_download_from_curl(char *url){
 		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);  // ちゃんと証明を確認する
 
 		//curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_NONE);
-
 		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+		
+		/*
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_write_callback);
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, buffer);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA,(void *)buffer);
+		*/ 
+
+		/* send all data to this function  */
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cb);
+
+		/* we pass our 'chunk' struct to the callback function */
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
 		//curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
 		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) NCSA=Mosaic/2.7b6 (X11;Linux 5.10.0-28-amd64 x86_64) libwww/2.12 modified curl version");
 		//curl_easy_setopt(curl, CURLOPT_USERAGENT, "NCSA_Mosaic/2.7b4 (X11;AIX 1 000180663000)");
@@ -281,7 +315,8 @@ static char *hack_download_from_curl(char *url){
 		free(HTMainText->htmlSrc);
 		HTMainText->htmlSrc;
 		//HTMainText->htmlSrc = strdup(buffer->data);
-		HTMainText->htmlSrc = buffer->data;
+		//HTMainText->htmlSrc = buffer->data;
+		HTMainText->htmlSrc = chunk.response;
 		
 		HTMainText->srcalloc = (int)res;
 		HTMainText->srclen = (int)res;

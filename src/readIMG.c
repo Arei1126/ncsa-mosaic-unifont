@@ -55,6 +55,8 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c, int *bg){
 
 	FIBITMAP *bitmap;
 
+	int transparent_index = -1;
+
 
 	FREE_IMAGE_FORMAT filetype = FreeImage_GetFileType(name,0);
 	if(filetype == -1){
@@ -72,12 +74,6 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c, int *bg){
 		fprintf(stderr,"[ReadIMG_name] filetype: %d\n",filetype);
 	}
 #endif
-
-	if(filetype == FIF_JPEG){	
-		FreeImage_DeInitialise();
-		return (unsigned char *)NULL;
-	}
-
 
 	bitmap = FreeImage_Load(filetype,name,0);
 
@@ -97,6 +93,82 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c, int *bg){
 	// 画像の幅と高さを取得
 	*w = FreeImage_GetWidth(bitmap);
 	*h = FreeImage_GetHeight(bitmap);
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+		fprintf(stderr,"size: %d x %d\n",*w,*h);
+	}
+#endif
+
+
+
+
+	if((*w)%4 != 0){		// Image with width not x4, FreeImage has storane behavior	
+	if(FreeImage_IsTransparent(bitmap)){
+		transparent_index = 0;
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+		fprintf(stderr,"Original Image is transparent\n");
+	}
+#endif	
+	}
+		int nw = 4 - ((*w)%4) + (*w);
+		FIBITMAP *nb;
+		nb = FreeImage_Rescale(bitmap, nw,*h,FILTER_BOX);
+		//FILTER_BOX
+		//FILTER_BILINEAR
+		//FILTER_BSPLINE 4th order (cubic) B-Spline
+		//FILTER_BICUBIC Mitchell and Netravali's two-param cubic filter
+		//FILTER_CATMULLROM Catmull-Rom spline, Overhauser spline
+		//FILTER_LANCZOS3a
+		if(nb == NULL){
+#ifndef DISABLE_TRACE
+			if(srcTrace){
+				fprintf(stderr,"[ReadIMG_name]Rescale failed\n");
+			}
+#endif
+			FreeImage_Unload(bitmap);
+			FreeImage_DeInitialise();
+			return NULL;
+		}
+		FreeImage_Unload(bitmap);
+		bitmap = nb;
+		*w = nw;
+#ifndef DISABLE_TRACE
+		if(srcTrace){
+			fprintf(stderr,"Rescaled to: %d x %d\n",nw,*h);
+		}
+#endif
+		/*
+		int ret = FreeImage_Save(filetype,nb,name,0);
+		if(ret == FALSE){
+#ifndef DISABLE_TRACE
+		if(srcTrace){
+			fprintf(stderr,"Cannnot save scaled img\n");
+		}
+#endif
+			FreeImage_Unload(bitmap);
+			FreeImage_Unload(nb);
+			FreeImage_DeInitialise();
+			return NULL;
+		}			
+		FreeImage_Unload(bitmap);
+		FreeImage_Unload(nb);
+		bitmap = NULL;
+		nb = NULL;
+		FreeImage_DeInitialise();
+		return ReadIMG_name(name, w, h, c, bg);  // restart
+							 
+		 */
+	}
+
+
+
+
+
+
+
+
+
 
 	int bpp = FreeImage_GetBPP(bitmap);
 #ifndef DISABLE_TRACE
@@ -133,7 +205,10 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c, int *bg){
 
 
 
-	}
+	}	
+
+
+
 
 
 	bpp = FreeImage_GetBPP(bitmap);
@@ -158,23 +233,66 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c, int *bg){
 		*bg = 1;
 #ifndef DISABLE_TRACE
 	if(srcTrace){
-		fprintf(stderr,"Image has background color after\n");
+		fprintf(stderr,"Image has background color\n");
 	}
 #endif
 
 	}
 	else{
 		*bg = -1;
+	}	
+
+	if(FreeImage_IsTransparent(bitmap)){
+		transparent_index = FreeImage_GetTransparentIndex(bitmap);
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+		fprintf(stderr,"Image is transparent\n");
+		fprintf(stderr,"index: %d \n",transparent_index);
+	}
+#endif	
 	}
 
+
+
 	if(pal){
- 		int nColors = FreeImage_GetColorsUsed(bitmap);
-		for(int i = 0; i < (nColors -1); i++){   //パレットのコピー
-			colors[i].red = pal[i].rgbRed << 8; //256倍している
-			colors[i].green = pal[i].rgbGreen << 8;
-			colors[i].blue = pal[i].rgbBlue << 8;
-			colors[i].pixel = i;
-			colors[i].flags = DoRed|DoGreen|DoBlue;
+		if(transparent_index == -1){  // no transparency
+			int nColors = FreeImage_GetColorsUsed(bitmap);
+			for(int i = 0; i < (nColors -1); i++){   //パレットのコピー
+				colors[i].red = pal[i].rgbRed << 8; //256倍している
+				colors[i].green = pal[i].rgbGreen << 8;
+				colors[i].blue = pal[i].rgbBlue << 8;
+				colors[i].pixel = i;
+				colors[i].flags = DoRed|DoGreen|DoBlue;
+			}
+		}
+		else{	
+			extern Widget view;
+			unsigned long bg_pixel;
+			XColor bgcolr;
+			XtVaGetValues(view, XtNbackground, &bg_pixel, NULL);
+			bgcolr.pixel = bg_pixel;
+			//XQueryColor(XtDisplay(view),DefaultScreen(XtDisplay(view)),&bgcolr);
+			XQueryColor(XtDisplay(view),DefaultColormap(XtDisplay(view),0),&bgcolr);
+			int nColors = FreeImage_GetColorsUsed(bitmap);
+			for(int i = 0; i < (nColors -1); i++){  //パレットのコピー
+				if(i == transparent_index){  // 背景色	
+					colors[i].red = bgcolr.red;
+					colors[i].green = bgcolr.green;
+					colors[i].blue = bgcolr.blue << 8;
+					colors[i].pixel = i;
+					colors[i].flags = DoRed|DoGreen|DoBlue;
+
+				}
+				else{
+					colors[i].red = pal[i].rgbRed << 8; //256倍している
+					colors[i].green = pal[i].rgbGreen << 8;
+					colors[i].blue = pal[i].rgbBlue << 8;
+					colors[i].pixel = i;
+					colors[i].flags = DoRed|DoGreen|DoBlue;
+				}
+			}
+
+
 		}
 	}
 	else{  //ここまで来てもパレットがない= gray scale
@@ -202,15 +320,17 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c, int *bg){
 	
 	unsigned char *bits = (unsigned char *)FreeImage_GetBits(bitmap);
 	int size = (*w)*(*h)*sizeof(unsigned char);
+	
+		for(int i=0;i<(*h);i++){
+			for(int j = 0;j<(*w);j++){
+				pixmap[i*(*w)+j] = bits[(*h - i -1)*(*w) + j];
+				//pixmap[(i-1)*(*w)+(j-1)] = bits[(*h - (i-1))*(*w) + (j - 1)];
+				//pixmap[i*(*w)+j] = bits[i*(*w)+j];
+			}
 
-	for(int i=0;i<(*h);i++){
-		for(int j = 0;j<(*w);j++){
-			pixmap[i*(*w)+j] = bits[(*h - i -1)*(*w) + j];
-			//pixmap[(i-1)*(*w)+(j-1)] = bits[(*h - (i-1))*(*w) + (j - 1)];
-			//pixmap[i*(*w)+j] = bits[i*(*w)+j];
 		}
 
-	}
+
 	/*
 	for(int i=0;i < size ;i++){
 		//pixmap[i] = (unsigned char)uc_bitmap[i];

@@ -283,7 +283,7 @@ ReadPNG(FILE *infile,int *width, int *height, XColor *colrs)
 
             png_uint_16p histogram = NULL;
             png_get_hIST(png_ptr, info_ptr, &histogram);
-            //png_set_quantize(png_ptr, palette,num_palette,get_pref_int(eCOLORS_PER_INLINED_IMAGE),histogram, 1);
+            png_set_quantize(png_ptr, palette,num_palette,get_pref_int(eCOLORS_PER_INLINED_IMAGE),histogram, 1);
 
         }
     }

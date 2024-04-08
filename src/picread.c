@@ -650,8 +650,10 @@ int *bg;
 	    {
 		    return(bit_data);
 	    }
-	    //return NULL;
+	    return NULL;
     }
+    return NULL;
+/*
 
     FILE *fp;
     fp = fopen(datafile, "r");
@@ -670,6 +672,7 @@ int *bg;
     }
     return NULL;
 #endif
+*/
 
     //if ((fp != NULL) && (fp != stdin)) fclose(fp);  // If ReadPNG have err, fp already closed, so it is DOUBLE FREE
 
