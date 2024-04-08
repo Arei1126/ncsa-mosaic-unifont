@@ -8,6 +8,21 @@
 extern int srcTrace;
 #endif
 
+
+void FreeImageErrorHandler(FREE_IMAGE_FORMAT fif, const char *message) {
+
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+	fprintf(stderr,"\n*** ");
+		if(fif != FIF_UNKNOWN) {
+			fprintf(stderr,"%s Format\n", FreeImage_GetFormatFromFIF(fif));
+		}
+		fprintf(stderr,message);
+		fprintf(stderr," ***\n");
+	}
+#endif
+}
+
 static unsigned DLL_CALLCONV
 myReadProc(void *buffer, unsigned size, unsigned count, fi_handle handle) {
  return (unsigned)fread(buffer, size, count, (FILE *)handle);
@@ -24,14 +39,15 @@ static long DLL_CALLCONV
 myTellProc(fi_handle handle) {
  return ftell((FILE *)handle);
 }
-unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c){
+unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c, int *bg){
 #ifndef DISABLE_TRACE
 	if(srcTrace){
-		fprintf(stderr,"[ReadIMG] Entering\n");
+		fprintf(stderr,"[ReadIMG_name] Entering\n");
 	}
 #endif
 
 	FreeImage_Initialise(FALSE);
+	FreeImage_SetOutputMessage(FreeImageErrorHandler);
 
 	unsigned char *pixmap;	
 	XColor *colors = c;
@@ -47,8 +63,8 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c){
 			fprintf(stderr,"[ReadIMG_name] Could not identify file type\n");
 		}
 #endif	
-		//FreeImage_DeInitialise();
-		//	return (unsigned char *)NULL;
+		FreeImage_DeInitialise();
+		return (unsigned char *)NULL;
 
 	}
 #ifndef DISABLE_TRACE
@@ -57,47 +73,25 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c){
 	}
 #endif
 
+	if(filetype == FIF_JPEG){	
+		FreeImage_DeInitialise();
+		return (unsigned char *)NULL;
+	}
+
 
 	bitmap = FreeImage_Load(filetype,name,0);
 
 	if(bitmap == NULL){
 #ifndef DISABLE_TRACE
-				if(srcTrace){
-					fprintf(stderr,"[ReadIMG_name] First attempt FreeImage_LoadFromHandle err format = %d\n",filetype);
-				}
-#endif
-
-		for(int i = 0; i <= 36; i++){
-			bitmap = FreeImage_Load(i,name,0);
-			if(bitmap == NULL){
-#ifndef DISABLE_TRACE
-				if(srcTrace){
-					fprintf(stderr,"[ReadIMG_name] FreeImage_LoadFromHandle err format = %d\n",i);
-				}
-#endif
-				continue;
-			}
-			else{
-#ifndef DISABLE_TRACE
-				if(srcTrace){
-					fprintf(stderr,"[ReadIMG_name] FreeImage_LoadFromHandle success format = %d\n",i);
-				}
-#endif
-				break;
-			}
-
-		}	
-	}
-	if(bitmap == NULL){
-
-#ifndef DISABLE_TRACE
 		if(srcTrace){
-			fprintf(stderr,"[ReadIMG_name] attempt for all format failed\n");
+			fprintf(stderr,"[ReadIMG_name] First attempt FreeImage_LoadFromHandle err format = %d\n",filetype);
+
 		}
 #endif
 		FreeImage_DeInitialise();
-		return NULL;
+		return (unsigned char *)NULL;
 	}
+
 
 
 	// 画像の幅と高さを取得
@@ -111,18 +105,36 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c){
 	}
 #endif
 
-	if(bpp == 24){  //if high color img, dither to 256 colors
-		//FIBITMAP *d_bitmap = FreeImage_ColorQuantize(bitmap, FIQ_WUQUANT);
+
+	if(bpp == 24 || bpp == 32){  //if high color img, dither to 256 colors
+		FIBITMAP *dithered_bitmap = FreeImage_ColorQuantize(bitmap, FIQ_WUQUANT);	
+		//FIBITMAP *dithered_bitmap = FreeImage_ColorQuantizeEx(bitmap, FIQ_WUQUANT,256,0,NULL);	
 		//FIQ_WUQUANT
 		//FIQ_NNQUANT
 		//FIQ_LFPQUANT
-		bitmap = FreeImage_ColorQuantize(bitmap, FIQ_WUQUANT);
-	}
-	if(bpp == 32){
-		bitmap = FreeImage_ConvertTo24Bits(bitmap);
-		bitmap = FreeImage_ColorQuantize(bitmap, FIQ_WUQUANT);
+		//FIBITMAP *dithered_bitmap = FreeImage_ConvertTo8Bits(bitmap);
+		if(dithered_bitmap == NULL){
+
+#ifndef DISABLE_TRACE
+			if(srcTrace){
+				fprintf(stderr,"[readIMG_name] failed quiantize\n");
+
+			}
+#endif
+			FreeImage_Unload(bitmap);
+			FreeImage_DeInitialise();
+			return NULL;
+
+
+		}else{
+			FreeImage_Unload(bitmap);
+			bitmap = dithered_bitmap;
+		}
+
+
 
 	}
+
 
 	bpp = FreeImage_GetBPP(bitmap);
 #ifndef DISABLE_TRACE
@@ -137,6 +149,23 @@ unsigned char *ReadIMG_name(char *name, int *w, int*h, XColor *c){
 
 	
 	RGBQUAD *pal = FreeImage_GetPalette(bitmap);
+
+	//RGBQUAD *bkcolor;
+
+
+
+	if(FreeImage_HasBackgroundColor(bitmap)){
+		*bg = 1;
+#ifndef DISABLE_TRACE
+	if(srcTrace){
+		fprintf(stderr,"Image has background color after\n");
+	}
+#endif
+
+	}
+	else{
+		*bg = -1;
+	}
 
 	if(pal){
  		int nColors = FreeImage_GetColorsUsed(bitmap);

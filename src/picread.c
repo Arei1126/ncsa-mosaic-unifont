@@ -645,13 +645,35 @@ int *bg;
 {    
     unsigned char *bit_data;
     if (!(datafile == NULL)){
-	    bit_data = ReadIMG_name(datafile, w, h,colrs);
+	    bit_data = ReadIMG_name(datafile, w, h,colrs,bg);
 	    if (bit_data != NULL)
 	    {
 		    return(bit_data);
 	    }
+	    //return NULL;
+    }
+
+    FILE *fp;
+    fp = fopen(datafile, "r");
+    if(fp == NULL){
 	    return NULL;
     }
+
+#ifdef HAVE_JPEG
+    bit_data = ReadJPEG(fp, w, h, colrs);
+    if (bit_data != NULL)
+    {
+	    if (fp != NULL) {
+		    fclose(fp);
+	    };
+	    return(bit_data);
+    }
+    return NULL;
+#endif
+
+    //if ((fp != NULL) && (fp != stdin)) fclose(fp);  // If ReadPNG have err, fp already closed, so it is DOUBLE FREE
+
+
     
 	/*
     unsigned char *bit_data;
